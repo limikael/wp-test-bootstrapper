@@ -15,7 +15,7 @@ if (is_file(getenv("WP_TEST_BOOTSTRAPPER_DB_CACHE"))) {
 	echo "Restoring saved database contents...\n";
 
 	$fn=getenv("WP_TEST_BOOTSTRAPPER_DB_CACHE");
-	$state=json_decode(file_get_contents($fn));
+	$state=json_decode(file_get_contents($fn),TRUE);
 	$dbState=new DbState($pdo);
 	$dbState->restoreState($state);
 	exit;

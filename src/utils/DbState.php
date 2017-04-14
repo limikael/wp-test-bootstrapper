@@ -53,8 +53,21 @@ class DbState {
 	 * Restore a previously snapshotted state.
 	 */
 	public function restoreState($state) {
+		$currentTables=array();
+		$q=$this->pdo->query("SHOW TABLES");
+		$rows=$q->fetchAll(PDO::FETCH_NUM);
+		foreach ($rows as $row)
+			$currentTables[]=$row[0];
+
 		foreach ($state as $tableState) {
-			
+			$tableName=$tableState["name"];
+
+			if (!in_array($tableName,$currentTables))
+				$this->pdo->exec($tableState["create"]);
+
+			$q=$this->pdo->query("SELECT * FROM $tableName");
+			$currentData=$q->fetchAll(PDO::FETCH_ASSOC);
+
 		}
 	}
 }
