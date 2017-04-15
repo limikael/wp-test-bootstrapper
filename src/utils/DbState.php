@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__."/ArrayUtil.php";
+require_once __DIR__."/DbException.php";
 
 /**
  * Get a snapshot and restore a database state.
@@ -21,6 +22,9 @@ class DbState {
 	 */
 	private function getPrimaryKeyColumnsForTable($tableName) {
 		$q=$this->pdo->query("SHOW KEYS FROM $tableName WHERE Key_name='PRIMARY'");
+		if (!$q)
+			throw new DbException($this->pdo);
+
 		$rows=$q->fetchAll(PDO::FETCH_ASSOC);
 
 		if (!sizeof($rows))
@@ -37,6 +41,9 @@ class DbState {
 	 */
 	public function getState() {
 		$q=$this->pdo->query("SHOW TABLES");
+		if (!$q)
+			throw new DbException($this->pdo);
+
 		$rows=$q->fetchAll(PDO::FETCH_NUM);
 		$tableDatas=array();
 
@@ -46,6 +53,9 @@ class DbState {
 			$tableData["name"]=$tableName;
 
 			$q=$this->pdo->query("SHOW CREATE TABLE $tableName");
+			if (!$q)
+				throw new DbException($this->pdo);
+
 			$row=$q->fetch(PDO::FETCH_NUM);
 			$tableData["create"]=$row[1];
 
@@ -66,8 +76,10 @@ class DbState {
 		foreach ($data as $key=>$value)
 			$set[]=$key."=".$this->pdo->quote($value);
 
-		$qs="INSERT INTO $tableName SETT ".join(",",$set);
-		$this->pdo->exec($qs);
+		$qs="INSERT INTO $tableName SET ".join(",",$set);
+		$res=$this->pdo->exec($qs);
+		if ($res===FALSE)
+			throw new DbException($this->pdo);
 	}
 
 	/**
@@ -84,7 +96,9 @@ class DbState {
 		$qs="UPDATE $tableName SET ".join(",",$set).
 			" WHERE $keyColumn=".$this->pdo->quote($data[$keyColumn]);
 
-		$this->pdo->exec($qs);
+		$res=$this->pdo->exec($qs);
+		if ($res===FALSE)
+			throw new DbException($this->pdo);
 	}
 
 	/**
@@ -93,6 +107,9 @@ class DbState {
 	public function restoreState($expectedState) {
 		$currentTables=array();
 		$q=$this->pdo->query("SHOW TABLES");
+		if (!$q)
+			throw new DbException($this->pdo);
+
 		$rows=$q->fetchAll(PDO::FETCH_NUM);
 		foreach ($rows as $row)
 			$currentTables[]=$row[0];
@@ -117,11 +134,15 @@ class DbState {
 					$this->updateData($tableName,$expectedIndexedData[$id]);
 
 			$toDelete=array_diff(array_keys($currentIndexedData),array_keys($expectedIndexedData));
-			foreach ($toDelete as $id)
-				$this->pdo->exec(
+			foreach ($toDelete as $id) {
+				$res=$this->pdo->exec(
 					"DELETE FROM $tableName WHERE $keyColumn=".
 					$this->pdo->quote($id)
 				);
+
+				if ($res===FALSE)
+					throw new DbException($this->pdo);
+			}
 
 			$toCreate=array_diff(array_keys($expectedIndexedData),array_keys($currentIndexedData));
 			foreach ($toCreate as $createId)
