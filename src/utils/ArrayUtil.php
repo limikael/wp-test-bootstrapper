@@ -1,5 +1,7 @@
 <?php
 
+namespace bootstrapper;
+
 /**
  * Array utilities.
  */

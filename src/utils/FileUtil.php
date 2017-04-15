@@ -1,5 +1,7 @@
 <?php
 
+namespace bootstrapper;
+
 /**
  * File utilities.
  */

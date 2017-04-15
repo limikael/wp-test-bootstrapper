@@ -1,7 +1,12 @@
 <?php
 
+namespace bootstrapper;
+
 require_once __DIR__."/ArrayUtil.php";
 require_once __DIR__."/DbException.php";
+
+use \Exception;
+use \PDO;
 
 /**
  * Get a snapshot and restore a database state.

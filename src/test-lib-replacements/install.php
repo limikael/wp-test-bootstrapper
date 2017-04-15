@@ -15,6 +15,8 @@
 require_once getenv("WP_TEST_BOOTSTRAPPER_PATH")."/src/utils/DbState.php";
 require_once $argv[1];
 
+use bootstrapper\DbState;
+
 $dsn="mysql:host=".DB_HOST.";dbname=".DB_NAME;
 $pdo=new PDO($dsn,DB_USER,DB_PASSWORD);
 

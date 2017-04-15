@@ -1,5 +1,9 @@
 <?php
 
+namespace bootstrapper;
+
+use \Exception;
+
 /**
  * Extract error information from a PDO object or a PDOStatement
  * object.
