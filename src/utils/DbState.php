@@ -129,8 +129,15 @@ class DbState {
 		foreach ($expectedState as $expectedTableState) {
 			$tableName=$expectedTableState["name"];
 
-			if (!in_array($tableName,$currentTables))
-				$this->pdo->exec($expectedTableState["create"]);
+			if (!in_array($tableName,$currentTables)) {
+				$res=$this->pdo->exec("SET SQL_MODE='ALLOW_INVALID_DATES'");
+				if ($res===FALSE)
+					throw new DbException($this->pdo);
+
+				$res=$this->pdo->exec($expectedTableState["create"]);
+				if ($res===FALSE)
+					throw new DbException($this->pdo);
+			}
 
 			$keyColumn=$this->getPrimaryKeyColumnForTable($tableName);
 

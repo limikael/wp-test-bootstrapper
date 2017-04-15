@@ -7,7 +7,7 @@ class WpTestBootstrapper {
 
 	private $dbName;
 	private $dbUser;
-	private $dpPass;
+	private $dbPass;
 	private $dbHost;
 	private $projectDir;
 
@@ -165,15 +165,63 @@ class WpTestBootstrapper {
 	}
 
 	/**
+	 * Check if we can connect to the specified database.
+	 * If not, use mysqladmin to try to set it up.
+	 */
+	private function setupDatabase() {
+		$pdo=NULL;
+
+		$dsn="mysql:host=".$this->dbHost.";dbname=".$this->dbName;
+		try {
+			$pdo=new PDO($dsn,$this->dbUser,$this->dbPass);
+			if ($pdo)
+				return;
+		}
+
+		catch (PDOException $e) {
+		}
+
+		echo "Running mysqladmin to set up the database...\n";
+
+		$cmd="mysqladmin create ".
+			escapeshellarg($this->dbName)." ".
+			" --user=".escapeshellarg($this->dbUser)." ".
+			" --password=".escapeshellarg($this->dbPass)." ".
+			" --host=".escapeshellarg($this->dbHost);
+
+		$res=system($cmd,$ret);
+		if ($res===FALSE || $ret!==0) {
+			echo "\n";
+			echo "--------------------------------------------------------------\n";
+			echo "  Error: Unable to connect to the specified database. Also\n";
+			echo "  tried to run mysqladmin to set it up, but that didn't work\n";
+			echo "  either. Make sure your are passing the right credentials.\n";
+			echo "  The credentials tried were these:\n";
+			echo "  \n";
+			echo "  Host:     ".$this->dbHost."\n";
+			echo "  Database: ".$this->dbName."\n";
+			echo "  User:     ".$this->dbUser."\n";
+			echo "  Password: ".($this->dbPass?"******":"(none)")."\n";
+			echo "--------------------------------------------------------------\n";
+			echo "\n";
+
+			exit(1);
+		}
+	}
+
+	/**
 	 * Actually load the plugin file.
 	 */
 	public function loadPlugin() {
+		echo "Looking for plugins: ".$this->getProjectDir()."\n";
+
 		$files=scandir($this->getProjectDir());
 
 		$defaultHeaders=array(
 			'Name' => 'Plugin Name',
         );
 
+		$pluginFound=FALSE;
 		foreach ($files as $file) {
 			if (substr($file,-4)==".php") {
 				$data=get_file_data($file,$defaultHeaders);
@@ -181,21 +229,25 @@ class WpTestBootstrapper {
 					echo "Loading plugin: ".$data["Name"]."\n";
 
 					require_once $this->getProjectDir()."/".$file;
+					$pluginFound=TRUE;
 				}
 			}
 		}
+
+		if (!$pluginFound)
+			echo "Warning: No WordPress plugin found in the expected path.\n";
 	}
 
 	/**
 	 * Perform the bootstrap.
 	 */
 	public function bootstrap() {
+		$this->setupDatabase();
 		$this->install();
 		$this->setupTestConfig();
 
 		require_once $this->getTestDir()."/includes/functions.php";
 
-		echo "Bootstrap...\n";
 		tests_add_filter('muplugins_loaded',array($this,"loadPlugin"));
 
 		putenv("WP_TEST_BOOTSTRAPPER_DB_CACHE=".$this->getTestDir()."/database.json");
