@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__."/ArrayUtil.php";
+
 /**
  * Get a snapshot and restore a database state.
  */
@@ -15,9 +17,16 @@ class DbState {
 	}
 
 	/**
-	 * 
+	 * Get primary key column given a table.
 	 */
-	private function getPrimaryKeyColumnForTable($tableName) {
+	private function getPrimaryKeyColumnsForTable($tableName) {
+		$q=$this->pdo->query("SHOW KEYS FROM $tableName WHERE Key_name='PRIMARY'");
+		$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+
+		if (!sizeof($rows))
+			throw new Exception("Expected at least one key column");
+
+		return $rows[0]["Column_name"];
 	}
 
 	/**
@@ -50,24 +59,73 @@ class DbState {
 	}
 
 	/**
+	 * Insert a record of data.
+	 */
+	public function insertData($tableName, $data) {
+		$set=array();
+		foreach ($data as $key=>$value)
+			$set[]=$key."=".$this->pdo->quote($value);
+
+		$qs="INSERT INTO $tableName SETT ".join(",",$set);
+		$this->pdo->exec($qs);
+	}
+
+	/**
+	 * Update a record of data.
+	 */
+	public function updateData($tableName, $data) {
+		$keyColumn=$this->getPrimaryKeyColumnsForTable($tableName);
+
+		$set=array();
+		foreach ($data as $key=>$value)
+			if ($key!=$keyColumn)
+				$set[]=$key."=".$this->pdo->quote($value);
+
+		$qs="UPDATE $tableName SET ".join(",",$set).
+			" WHERE $keyColumn=".$this->pdo->quote($data[$keyColumn]);
+
+		$this->pdo->exec($qs);
+	}
+
+	/**
 	 * Restore a previously snapshotted state.
 	 */
-	public function restoreState($state) {
+	public function restoreState($expectedState) {
 		$currentTables=array();
 		$q=$this->pdo->query("SHOW TABLES");
 		$rows=$q->fetchAll(PDO::FETCH_NUM);
 		foreach ($rows as $row)
 			$currentTables[]=$row[0];
 
-		foreach ($state as $tableState) {
-			$tableName=$tableState["name"];
+		foreach ($expectedState as $expectedTableState) {
+			$tableName=$expectedTableState["name"];
 
 			if (!in_array($tableName,$currentTables))
-				$this->pdo->exec($tableState["create"]);
+				$this->pdo->exec($expectedTableState["create"]);
+
+			$keyColumn=$this->getPrimaryKeyColumnsForTable($tableName);
 
 			$q=$this->pdo->query("SELECT * FROM $tableName");
 			$currentData=$q->fetchAll(PDO::FETCH_ASSOC);
 
+			$currentIndexedData=ArrayUtil::indexBy($currentData,$keyColumn);
+			$expectedIndexedData=ArrayUtil::indexBy($expectedTableState["data"],$keyColumn);
+
+			$toUpdate=array_intersect(array_keys($expectedIndexedData),array_keys($currentIndexedData));
+			foreach ($toUpdate as $id)
+				if ($currentIndexedData[$id]!=$expectedIndexedData[$id])
+					$this->updateData($tableName,$expectedIndexedData[$id]);
+
+			$toDelete=array_diff(array_keys($currentIndexedData),array_keys($expectedIndexedData));
+			foreach ($toDelete as $id)
+				$this->pdo->exec(
+					"DELETE FROM $tableName WHERE $keyColumn=".
+					$this->pdo->quote($id)
+				);
+
+			$toCreate=array_diff(array_keys($expectedIndexedData),array_keys($currentIndexedData));
+			foreach ($toCreate as $createId)
+				$this->insertData($tableName,$expectedIndexedData[$createId]);
 		}
 	}
 }

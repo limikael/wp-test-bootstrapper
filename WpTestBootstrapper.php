@@ -37,31 +37,6 @@ class WpTestBootstrapper {
 	}
 
 	/**
-	 * Copy directory recursively.
-	 */
-	function recursiveCopy($src,$dst) { 
-		$dir = opendir($src); 
-		if (!$dir)
-			throw new Exception("Unable to open src dir");
-
-		if (!mkdir($dst,0755,TRUE))
-			throw new Exception("Unable to create dest dir");
-
-		while(false !== ( $file = readdir($dir)) ) { 
-			if (( $file != '.' ) && ( $file != '..' )) { 
-				if ( is_dir($src . '/' . $file) ) { 
-					$this->recursiveCopy($src . '/' . $file,$dst . '/' . $file); 
-				} 
-				else { 
-					if (!copy($src . '/' . $file,$dst . '/' . $file))
-						throw new Exception("Unable to copy file");
-				} 
-			} 
-		} 
-		closedir($dir); 
-	} 
-
-	/**
 	 * Download and install required components.
 	 */
 	private function install() {
@@ -148,7 +123,7 @@ class WpTestBootstrapper {
 	/**
 	 * Generate wp-tests-config.php from wp-tests-config-sample.php
 	 */
-	private function setup() {
+	private function setupTestConfig() {
 		$replace=array(
 			"'/src/'"=>"'/wordpress/'",
 			"youremptytestdbnamehere"=>$this->dbName,
@@ -190,28 +165,6 @@ class WpTestBootstrapper {
 	}
 
 	/**
-	 * Clear the database.
-	 * Is this a good idea?
-	 */
-	private function clearDatabase() {
-		$dsn="mysql:host={$this->dbHost};dbname={$this->dbName}";
-		$pdo=new PDO($dsn,$this->dbUser,$this->dbPass);
-		$q=$pdo->query("SHOW TABLES");
-		if (!$q)
-			throw new Exception($dpo->errorInfo());
-
-		$rows=$q->fetchAll(PDO::FETCH_NUM);
-
-		foreach ($rows as $row) {
-			$tableName=$row[0];
-			$q=$pdo->query("DROP TABLE $tableName");
-//			$q=$pdo->query("DELETE FROM $tableName");
-			if (!$q)
-				throw new Exception($dpo->errorInfo());
-		}
-	}
-
-	/**
 	 * Actually load the plugin file.
 	 */
 	public function loadPlugin() {
@@ -238,8 +191,7 @@ class WpTestBootstrapper {
 	 */
 	public function bootstrap() {
 		$this->install();
-		$this->setup();
-		//$this->clearDatabase();
+		$this->setupTestConfig();
 
 		require_once $this->getTestDir()."/includes/functions.php";
 
