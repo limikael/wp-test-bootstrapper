@@ -9,6 +9,7 @@ require_once __DIR__."/DbException.php";
 class DbState {
 
 	private $pdo;
+	private $keyColumns=array();
 
 	/**
 	 * Construct.
@@ -20,7 +21,10 @@ class DbState {
 	/**
 	 * Get primary key column given a table.
 	 */
-	private function getPrimaryKeyColumnsForTable($tableName) {
+	private function getPrimaryKeyColumnForTable($tableName) {
+		if (isset($this->keyColumns[$tableName]))
+			return $this->keyColumns[$tableName];
+
 		$q=$this->pdo->query("SHOW KEYS FROM $tableName WHERE Key_name='PRIMARY'");
 		if (!$q)
 			throw new DbException($this->pdo);
@@ -30,7 +34,10 @@ class DbState {
 		if (!sizeof($rows))
 			throw new Exception("Expected at least one key column");
 
-		return $rows[0]["Column_name"];
+		$keyColumn=$rows[0]["Column_name"];
+		$this->keyColumns[$tableName]=$keyColumn;
+
+		return $keyColumn;
 	}
 
 	/**
@@ -86,7 +93,7 @@ class DbState {
 	 * Update a record of data.
 	 */
 	public function updateData($tableName, $data) {
-		$keyColumn=$this->getPrimaryKeyColumnsForTable($tableName);
+		$keyColumn=$this->getPrimaryKeyColumnForTable($tableName);
 
 		$set=array();
 		foreach ($data as $key=>$value)
@@ -120,9 +127,12 @@ class DbState {
 			if (!in_array($tableName,$currentTables))
 				$this->pdo->exec($expectedTableState["create"]);
 
-			$keyColumn=$this->getPrimaryKeyColumnsForTable($tableName);
+			$keyColumn=$this->getPrimaryKeyColumnForTable($tableName);
 
 			$q=$this->pdo->query("SELECT * FROM $tableName");
+			if (!$q)
+				throw new DbException($this->pdo);
+
 			$currentData=$q->fetchAll(PDO::FETCH_ASSOC);
 
 			$currentIndexedData=ArrayUtil::indexBy($currentData,$keyColumn);
